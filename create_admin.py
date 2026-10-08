@@ -16,13 +16,6 @@ else:
 
 # Create Default Station
 station, created = SensorStation.objects.get_or_create(
-    station_id="ST-01-ESP32",
-    defaults={
-        "name": "Stasiun Posko Bencana 01",
-        "latitude": -6.2088,
-        "longitude": 106.8456,
-        "description": "Stasiun Utama Monitoring Gempa & Banjir Terpadu"
-    }
 )
 if created:
     print("[SUCCESS] Stasiun default berhasil didaftarkan ke database.")
