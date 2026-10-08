@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIS MONITORING - Sistem Informasi Geografis Pendeteksi Gempa & EWS Bandar Lampung</title>
+    <meta name="description" content="Sistem Informasi Geografis Berbasis Web (GIS) untuk Pemantauan Gempa Seismik, Curah Hujan, Elevasi, dan Kualitas Air Kota Bandar Lampung & ITERA.">
+    
+    <!-- PWA Meta & Manifest -->
+    <link rel="manifest" href="static/manifest.json">
+    <meta name="theme-color" content="#0B132B">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌋</text></svg>">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS (OpenStreetMap & Google Satellite GIS) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    
+    <!-- Font Awesome Icons 6 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Custom GIS Theme Stylesheet with Cache Buster -->
+    <link rel="stylesheet" href="static/css/style.css?v=20260921_05">
+
+    <!-- Anti-Cache & Service Worker Destroyer -->
+    <script>
+        // Paksa bersihkan semua cache lama dan unregister service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                for (let registration of registrations) {
+                    registration.unregister();
+                }
+            });
+        }
+        if ('caches' in window) {
+            caches.keys().then(function(names) {
+                for (let name of names) caches.delete(name);
+            });
+        }
+    </script>
+</head>
+<body class="gis-body">
+
+    <!-- 1. TOP GIS NAVIGATION BAR -->
+    <header class="gis-navbar">
+        <div class="gis-nav-left">
+            <div class="gis-brand-logo">
+                <i class="fa-solid fa-earth-asia brand-globe-icon"></i>
+                <div class="brand-titles">
+                    <h1 class="gis-title">GIS MONITORING</h1>
+                    <span class="gis-subtitle">Sistem Informasi Geografis EWS Kota Bandar Lampung</span>
+                </div>
+            </div>
+
+            <nav class="gis-nav-links">
+                <a href="#pos-alat" class="nav-link active"><i class="fa-solid fa-list-check"></i> List Pos Alat</a>
+                <a href="#skala-bahaya" class="nav-link"><i class="fa-solid fa-triangle-exclamation"></i> Skala Bahaya Gempa</a>
+                <a href="#data-hujan" class="nav-link"><i class="fa-solid fa-cloud-showers-heavy"></i> Data Hujan</a>
+                <a href="#elevasi" class="nav-link"><i class="fa-solid fa-mountain"></i> Elevasi Wilayah</a>
+            </nav>
+        </div>
+
+        <div class="gis-nav-right">
+            <div class="gis-search-box">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="filter-pos-input" placeholder="Search pos pantau / kecamatan..." autocomplete="off">
+            </div>
+
+            <button id="btn-reset-bandarlampung" class="btn-gis-action" title="Fokuskan Peta ke 1 Kota Bandar Lampung Penuh">
+                <i class="fa-solid fa-crosshairs text-primary"></i> 1 Bandar Lampung
+            </button>
+
+            <button id="btn-install-pwa" class="btn-gis-action hidden" title="Install Web App">
+                <i class="fa-solid fa-download text-success"></i> Install App
+            </button>
+        </div>
+    </header>
+
+    <!-- 2. MAIN GIS WORKSPACE -->
+    <div class="gis-workspace">
+
+        <!-- A. LEFT PANEL: POS ALAT -->
+        <aside class="gis-sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-tower-broadcast"></i> Pos Alat</h2>
+                <span class="badge-station-count">7 Pos Pantau</span>
+            </div>
+
+            <div class="sidebar-filter-bar">
+                <input type="text" id="quick-filter-input" placeholder="Filter..." class="filter-input-small">
+                <button id="btn-sort-stations" class="btn-sort" title="Urutkan Pos Alat"><i class="fa-solid fa-arrow-down-a-z"></i> Sort</button>
+            </div>
+
+            <div class="station-list-scroll" id="station-list-container"></div>
+
+            <div class="active-station-card">
+                <div class="card-header-mini">
+                    <span class="status-live-dot"></span>
+                    <strong id="active-station-title">Pos Pantau ITERA (Pusat EWS)</strong>
+                </div>
+                <div class="active-metrics-grid">
+                    <div class="m-metric">
+                        <span class="m-lbl">Elevasi</span>
+                        <strong class="m-val text-primary" id="active-station-elevation">124 mdpl</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">PGA (g)</span>
+                        <strong class="m-val text-success" id="active-station-pga">0.000 g</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Akselerasi Gal</span>
+                        <strong class="m-val" id="active-station-gal">0.0 gal</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Skala MMI</span>
+                        <strong class="m-val" id="active-station-mmi">I (Aman)</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Curah Hujan</span>
+                        <strong class="m-val" id="active-station-rain">0.0 mm/h (Cerah)</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">Tinggi Air</span>
+                        <strong class="m-val" id="active-station-water">42.0 cm</strong>
+                    </div>
+                    <div class="m-metric">
+                        <span class="m-lbl">TDS / pH</span>
+                        <strong class="m-val" id="active-station-tds">148 ppm | pH 7.2</strong>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- B. CENTER / RIGHT: SATELLITE MAP -->
+        <main class="gis-map-area">
+            <div class="gis-floating-layer-panel">
+                <div class="layer-section">
+                    <div class="layer-radio-group">
+                        <label class="radio-label">
+                            <input type="radio" name="map-base-layer" id="layer-satellite" checked>
+                            <span>Satelit (Google GIS)</span>
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="map-base-layer" id="layer-roadmap">
+                            <span>Peta (Roadmap)</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="layer-divider"></div>
+
+                <div class="layer-section">
+                    <div class="layer-title"><i class="fa-solid fa-layer-group"></i> Pos Pantau:</div>
+                    <div class="layer-checklist">
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-rain" checked>
+                            <span class="chk-icon icon-rain"><i class="fa-solid fa-cloud-rain"></i></span>
+                            <span>Curah Hujan</span>
+                        </label>
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-quake" checked>
+                            <span class="chk-icon icon-quake"><i class="fa-solid fa-wave-square"></i></span>
+                            <span>Gempa / Seismik</span>
+                        </label>
+                        <label class="chk-label">
+                            <input type="checkbox" id="chk-layer-water" checked>
+                            <span class="chk-icon icon-water"><i class="fa-solid fa-droplet"></i></span>
+                            <span>Muka Air Sungai</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div id="gis-map-viewport" class="gis-map-canvas"></div>
+
+            <div class="gis-floating-footer">
+                <div class="footer-tag">
+                    <i class="fa-solid fa-location-dot text-primary"></i> <strong>Wilayah:</strong> Kota Bandar Lampung & Lampung Selatan
+                </div>
+                <div class="footer-tag">
+                    <i class="fa-solid fa-mountain text-warning"></i> <strong>Rentang Elevasi:</strong> 12 mdpl (Pesisir Panjang) - 215 mdpl (Kemiling)
+                </div>
+                <div class="footer-tag">
+                    <i class="fa-solid fa-satellite text-info"></i> <strong>Engine:</strong> Google Maps Satellite & OpenStreetMap GIS
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <!-- 3. PARAMETER BERBAHAYA GEMPA, HUJAN, ELEVASI -->
+    <section class="gis-details-container" id="skala-bahaya">
+        
+        <!-- CARD 1: SATUAN BERBAHAYA GEMPA -->
+        <div class="detail-card">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-burst text-danger"></i> Satuan Berbahaya Gempa (PGA, Gal & Skala MMI)</h3>
+                <span class="badge badge-danger">Standar BMKG & USGS</span>
+            </div>
+            <p class="detail-desc">Ambang batas getaran seismik dari sensor MPU-6050 ESP32-C3 dengan Deadband Noise Filter:</p>
+            
+            <div class="table-responsive">
+                <table class="gis-table">
+                    <thead>
+                        <tr>
+                            <th>Tingkat Bahaya</th>
+                            <th>PGA (g)</th>
+                            <th>Akselerasi (Gal)</th>
+                            <th>Skala MMI</th>
+                            <th>Estimasi Magnitudo</th>
+                            <th>Dampak Fisik Lapangan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="row-normal">
+                            <td><span class="pill-status green">NORMAL / AMAN</span></td>
+                            <td>&lt; 0.002 g</td>
+                            <td>&lt; 1.4 gal</td>
+                            <td>MMI I</td>
+                            <td>&lt; 2.5 SR</td>
+                            <td>Getaran tidak dirasakan. Kondisi aman.</td>
+                        </tr>
+                        <tr class="row-warning">
+                            <td><span class="pill-status yellow">WASPADA</span></td>
+                            <td>0.002 - 0.010 g</td>
+                            <td>1.4 - 9.0 gal</td>
+                            <td>MMI II - III</td>
+                            <td>2.5 - 4.2 SR</td>
+                            <td>Getaran ringan dirasakan oleh beberapa orang di dalam rumah.</td>
+                        </tr>
+                        <tr class="row-siaga">
+                            <td><span class="pill-status orange">SIAGA</span></td>
+                            <td>0.010 - 0.030 g</td>
+                            <td>9.0 - 30.0 gal</td>
+                            <td>MMI IV - V</td>
+                            <td>4.2 - 5.5 SR</td>
+                            <td>Dirasakan banyak orang. Jendela berderik, gerabah pecah.</td>
+                        </tr>
+                        <tr class="row-danger">
+                            <td><span class="pill-status red">BAHAYA (AWAS)</span></td>
+                            <td>&gt; 0.030 g</td>
+                            <td>&gt; 30.0 gal</td>
+                            <td>MMI VI - XII</td>
+                            <td>&gt; 5.5 SR</td>
+                            <td>Kerusakan ringan hingga berat pada bangunan. Sirine darurat aktif!</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CARD 2: DATA WILAYAH TERDETEKSI HUJAN & SKALA BAHAYA -->
+        <div class="detail-card" id="data-hujan">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-cloud-showers-heavy text-info"></i> Data Wilayah Terdeteksi Hujan & Skala Bahaya</h3>
+                <span class="badge badge-info">Pemantauan 1 Bandar Lampung</span>
+            </div>
+            <p class="detail-desc">Monitoring intensitas presipitasi hujan (FC-37) dan risiko genangan banjir di Bandar Lampung:</p>
+
+            <div class="table-responsive">
+                <table class="gis-table">
+                    <thead>
+                        <tr>
+                            <th>Kategori Hujan</th>
+                            <th>Intensitas (mm/jam)</th>
+                            <th>Status Bahaya</th>
+                            <th>Wilayah Bandar Lampung Terdeteksi</th>
+                            <th>Risiko Banjir</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Cerah / Kering</strong></td>
+                            <td>0.0 mm/jam</td>
+                            <td><span class="pill-status green">Aman</span></td>
+                            <td>Kec. Tanjung Karang Pusat, Sukarame, Kemiling</td>
+                            <td>Tidak Ada Risiko</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Ringan</strong></td>
+                            <td>0.1 - 5.0 mm/jam</td>
+                            <td><span class="pill-status green">Normal</span></td>
+                            <td>Kec. Rajabasa, Way Huwi (Sekitar ITERA)</td>
+                            <td>Aman / Drainase Lancar</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Sedang</strong></td>
+                            <td>5.0 - 20.0 mm/jam</td>
+                            <td><span class="pill-status yellow">Waspada</span></td>
+                            <td>Kec. Teluk Betung Selatan, Pelabuhan Panjang</td>
+                            <td>Genangan 10 - 20 cm</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Hujan Lebat / Ekstrem</strong></td>
+                            <td>&gt; 20.0 mm/jam</td>
+                            <td><span class="pill-status red">Bahaya Banjir</span></td>
+                            <td>Daerah Aliran Sungai (DAS) Way Kuripan & Kali Balok</td>
+                            <td>Potensi Luapan Sungai & Genangan Tinggi</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CARD 3: ELEVASI WILAYAH & KUALITAS AIR TDS/pH -->
+        <div class="detail-card" id="elevasi">
+            <div class="detail-header">
+                <h3><i class="fa-solid fa-mountain text-primary"></i> Data Elevasi & Kualitas Air (TDS & pH)</h3>
+                <span class="badge badge-primary">Topografi Kota Bandar Lampung</span>
+            </div>
+
+            <div class="elev-grid">
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-water"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Terendah</span>
+                        <strong class="val">12 - 18 mdpl</strong>
+                        <span class="sub">Pesisir Teluk Betung & Pelabuhan Panjang</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-city"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Dataran Kota</span>
+                        <strong class="val">85 - 124 mdpl</strong>
+                        <span class="sub">Kampus ITERA, Rajabasa, Sukarame</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-mountain-sun"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Elevasi Tertinggi</span>
+                        <strong class="val">215 mdpl</strong>
+                        <span class="sub">Perbukitan Kemiling & Gunung Betung</span>
+                    </div>
+                </div>
+                <div class="elev-box">
+                    <div class="elev-icon"><i class="fa-solid fa-flask"></i></div>
+                    <div class="elev-info">
+                        <span class="lbl">Standar TDS & pH Air</span>
+                        <strong class="val">148 ppm | pH 7.2</strong>
+                        <span class="sub">Kondisi Air Bersih Standar PDAM</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    
+    <!-- Application Scripts with Cache Buster -->
+    <script src="static/js/map.js?v=20260921_05"></script>
+    <script src="static/js/app.js?v=20260921_05"></script>
+</body>
+</html>
